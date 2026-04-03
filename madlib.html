@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<title>
+Mad Lib
+</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="navbar">
+            <a href = "index.html">Home</a>
+            <a href = "resume.html">Resume</a>
+            <a href = "gallery.html">Gallery</a>
+            <a href = "geoquiz.html">Quiz</a>
+            <a class= "active" href = "madlib.html">Madlib</a>
+    </div>
+
+<div id="welcomeScreen" style="text-align: center;">
+<h1>Mad Lib Game</h1>
+<p>
+Write your own funny story! Just enter any word that comes to mind, as long as it matches the requested part of speech
+</p>
+<button onclick="startQuiz()">Start Game</button>
+</div>
+
+<div id="quizContainer" style="text-align: center; display: none;">
+
+<h2 id="question"></h2>
+
+<input id="answerInput" type="text" placeholder="Enter your answer">
+
+<br><br>
+
+<button onclick="checkAnswer()">Submit Answer</button>
+
+<p id="feedback"></p>
+
+
+</div>
+</body>
+
+<script>
+        let currentQuestion = 0;
+        function startQuiz(){
+            document.getElementById("welcomeScreen").style.display = "none";
+            document.getElementById("quizContainer").style.display = "block";
+            loadQuestion();
+        }
+
+        function loadQuestion(){
+            let partOfSpeech = ["noun","adjective","verb"]
+            document.getElementById("question").innerText = "Give me a/an "+partOfSpeech[currentQuestion%3];
+        }
+</script>
+</html>
