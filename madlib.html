@@ -33,7 +33,7 @@ Write your own funny story! Just enter any word that comes to mind, as long as i
 
 <br><br>
 
-<button onclick="checkAnswer()">Submit Answer</button>
+<button id="b1" onclick="checkAnswer()">Submit Answer</button>
 
 <p id="feedback"></p>
 
@@ -50,8 +50,28 @@ Write your own funny story! Just enter any word that comes to mind, as long as i
         }
 
         function loadQuestion(){
-            let partOfSpeech = ["noun","adjective","verb"]
+            let partOfSpeech = ["adjective","noun","verb"]
             document.getElementById("question").innerText = "Give me a/an "+partOfSpeech[currentQuestion%3];
+        }
+        let answers = [];
+        function checkAnswer(){
+
+            let userAnswer = document.getElementById("answerInput").value;
+            answers.push(userAnswer);
+
+            document.getElementById("answerInput").value = "";
+
+            currentQuestion++;
+            if (currentQuestion<6){
+                loadQuestion();
+            }if (currentQuestion===6){
+                document.getElementById("question").innerText = "One day, a very "+answers[0]+" "+answers[1]+" was getting ready to "+answers[2]+" to the "+answers[3]+" "+answers[4]+", when he saw a car about to "+ answers[5]+" him.";
+                document.getElementById("b1").textContent="reset";
+            }if (currentQuestion===7){
+                location.reload();
+            }
+            
+
         }
 </script>
 </html>
