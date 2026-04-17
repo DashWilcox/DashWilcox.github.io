@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Maze Game</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        #gameContainer {
+            text-align: center;
+            margin: 20px auto;
+        }
+
+        #gameCanvas {
+            border: 2px solid #333;
+            background-color: #f9f9f9;
+            display: block;
+            margin: 20px auto;
+        }
+
+        #gameInfo {
+            font-size: 18px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        #targetCount {
+            color: #ff6b6b;
+            margin: 0 10px;
+        }
+
+        #gameStatus {
+            font-size: 16px;
+            color: #d32f2f;
+            margin: 10px 0;
+            min-height: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <a href="index.html">Home</a>
+        <a href="resume.html">Resume</a>
+        <a href="gallery.html">Gallery</a>
+        <a href="geoquiz.html">Quiz</a>
+        <a href="madlib.html">Madlib</a>
+        <a href="blockgame.html">Block Game</a>
+        <a href="snake.html">Snake Game</a>
+        <a class="active" href="maze.html">Maze Game</a>
+    </div>
+
+    <div id="gameContainer">
+        <h2>Maze Game</h2>
+        <p>Navigate through the maze, collect all targets to open doors, and reach the exit to win!</p>
+
+        <div id="gameInfo">
+            Targets Collected: <span id="targetCount">0/3</span>
+        </div>
+        <div id="gameStatus"></div>
+
+        <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+        <div>
+            <button id="startBtn" onclick="startGame()">Start Game</button>
+            <button id="resetBtn" onclick="resetGame()" style="display: none;">Reset Game</button>
+        </div>
+
+        <p><small>Use arrow keys to move the player</small></p>
+    </div>
+
+    <script>
+        // ===== TILE CLASS =====
+        class Tile {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 'wall', 'path', 'target', 'door', 'exit'
+                this.collected = false;
+            }
+
+            draw(ctx, tileSize) {
+                const screenX = this.x * tileSize;
+                const screenY = this.y * tileSize;
+
+                switch (this.type) {
+                    case 'wall':
+                        ctx.fillStyle = '#000';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        break;
+                    case 'path':
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        break;
+                    case 'target':
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        if (!this.collected) {
+                            ctx.fillStyle = '#ffcc00';
+                            ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        }
+                        break;
+                    case 'door':
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        if (!game.allTargetsCollected) {
+                            ctx.fillStyle = '#ff0000';
+                            ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        }
+                        break;
+                    case 'exit':
+                        ctx.fillStyle = '#0f0';
+                        ctx.fillRect(screenX, screenY, tileSize, tileSize);
+                        break;
+                }
+            }
+
+            isWalkable(allTargetsCollected) {
+                if (this.type === 'wall') return false;
+                if (this.type === 'door' && !allTargetsCollected) return false;
+                return true;
+            }
+        }
+
+        // ===== PLAYER CLASS =====
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.color = '#2196F3';
+            }
+
+            draw(ctx, tileSize) {
+                const screenX = this.x * tileSize;
+                const screenY = this.y * tileSize;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(screenX + 2, screenY + 2, tileSize - 4, tileSize - 4);
+            }
+
+            move(dx, dy, maze, tileSize) {
+                const newX = this.x + dx;
+                const newY = this.y + dy;
+
+                if (newX >= 0 && newX < maze[0].length &&
+                    newY >= 0 && newY < maze.length) {
+                    const tile = maze[newY][newX];
+                    if (tile.isWalkable(game.allTargetsCollected)) {
+                        this.x = newX;
+                        this.y = newY;
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        // ===== STATIC MAZE LAYOUT =====
+        const MAZE_LAYOUT = [
+            "####################",
+            "#P.....#....#....#.#",
+            "#.###..#.##.#.##.#.#",
+            "#.#.....#....T..#.#.",
+            "#.#.###.####.##.#.##",
+            "#...#......#.......#",
+            "###.#.####.#.#####.#",
+            "#T..#.....T#.....#.#",
+            "#.#######.###.###....",
+            "#.......#.........#.",
+            "#.#####.#.######...#",
+            "#.....#.....#...D###",
+            "#####.#####.#.##...#",
+            "#...........#.#.##.E",
+            "#.#####.###.#.#...##",
+            "#.#...#.#...#...###.",
+            "#.#.#.#.#.###.#.#..#",
+            "#...#.....#...#..###",
+            "#.#########.###....#",
+            "####################"
+        ];
+
+        // ===== LOAD STATIC MAZE =====
+        function loadStaticMaze(gameInstance) {
+            gameInstance.maze = [];
+            let playerFound = false;
+
+            for (let y = 0; y < MAZE_LAYOUT.length; y++) {
+                const row = [];
+                for (let x = 0; x < MAZE_LAYOUT[y].length; x++) {
+                    const char = MAZE_LAYOUT[y][x];
+                    let type = 'path';
+
+                    switch (char) {
+                        case '#':
+                            type = 'wall';
+                            break;
+                        case 'T':
+                            type = 'target';
+                            break;
+                        case 'D':
+                            type = 'door';
+                            break;
+                        case 'E':
+                            type = 'exit';
+                            break;
+                        case 'P':
+                            type = 'path';
+                            if (!playerFound) {
+                                gameInstance.player = new Player(x, y);
+                                playerFound = true;
+                            }
+                            break;
+                    }
+
+                    row.push(new Tile(x, y, type));
+                }
+                gameInstance.maze.push(row);
+            }
+        }
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.tileSize = 40;
+                this.cols = this.canvas.width / this.tileSize;
+                this.rows = this.canvas.height / this.tileSize;
+                this.maze = [];
+                this.player = null;
+                this.targetsCollected = 0;
+                this.totalTargets = 3;
+                this.gameRunning = false;
+                this.gameOver = false;
+                this.won = false;
+                this.allTargetsCollected = false;
+            }
+
+            generateMaze() {
+                loadStaticMaze(this);
+            }
+
+            checkTargetCollection() {
+                const tile = this.maze[this.player.y][this.player.x];
+                if (tile.type === 'target' && !tile.collected) {
+                    tile.collected = true;
+                    this.targetsCollected++;
+                    this.updateTargetCount();
+
+                    if (this.targetsCollected === this.totalTargets) {
+                        this.allTargetsCollected = true;
+                    }
+                }
+            }
+
+            checkExitReached() {
+                const tile = this.maze[this.player.y][this.player.x];
+                if (tile.type === 'exit' && this.allTargetsCollected) {
+                    this.endGame(true);
+                }
+            }
+
+            update() {
+                if (this.gameOver || !this.gameRunning) return;
+
+                this.checkTargetCollection();
+                this.checkExitReached();
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Draw tiles
+                for (let y = 0; y < this.maze.length; y++) {
+                    for (let x = 0; x < this.maze[y].length; x++) {
+                        this.maze[y][x].draw(this.ctx, this.tileSize);
+                    }
+                }
+
+                // Draw player
+                this.player.draw(this.ctx, this.tileSize);
+            }
+
+            updateTargetCount() {
+                document.getElementById('targetCount').textContent = `${this.targetsCollected}/${this.totalTargets}`;
+            }
+
+            endGame(won) {
+                this.gameRunning = false;
+                this.gameOver = true;
+                this.won = won;
+
+                if (won) {
+                    document.getElementById('gameStatus').textContent = '🎉 You Won! Reached the exit!';
+                    document.getElementById('gameStatus').style.color = '#4CAF50';
+                } else {
+                    document.getElementById('gameStatus').textContent = 'Game Over!';
+                    document.getElementById('gameStatus').style.color = '#d32f2f';
+                }
+            }
+
+            reset() {
+                this.gameRunning = false;
+                this.gameOver = false;
+                this.won = false;
+                this.targetsCollected = 0;
+                this.allTargetsCollected = false;
+                this.updateTargetCount();
+                this.generateMaze();
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                document.getElementById('gameStatus').textContent = '';
+                document.getElementById('startBtn').style.display = 'inline-block';
+                document.getElementById('resetBtn').style.display = 'none';
+            }
+        }
+
+        // ===== GLOBAL GAME INSTANCE =====
+        let game = new Game();
+
+        // ===== CONTROLS =====
+        let nextDx = 0;
+        let nextDy = 0;
+
+        function handleKeys(e) {
+            if (!game.gameRunning) return;
+
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+            }
+
+            if (e.key === 'ArrowUp') {
+                game.player.move(0, -1, game.maze);
+            } else if (e.key === 'ArrowDown') {
+                game.player.move(0, 1, game.maze);
+            } else if (e.key === 'ArrowLeft') {
+                game.player.move(-1, 0, game.maze);
+            } else if (e.key === 'ArrowRight') {
+                game.player.move(1, 0, game.maze);
+            }
+        }
+
+        // ===== START GAME =====
+        function startGame() {
+            if (game.gameRunning) return;
+
+            game.reset();
+            game.gameRunning = true;
+            game.generateMaze();
+
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('resetBtn').style.display = 'inline-block';
+
+            document.addEventListener('keydown', handleKeys);
+
+            function gameLoop() {
+                game.update();
+                game.draw();
+
+                if (game.gameRunning) {
+                    requestAnimationFrame(gameLoop);
+                }
+            }
+
+            gameLoop();
+        }
+
+        // ===== RESET GAME =====
+        function resetGame() {
+            game.reset();
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            game = new Game();
+        });
+    </script>
+</body>
+</html>
